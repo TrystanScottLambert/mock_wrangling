@@ -3,6 +3,7 @@ Selection package to cut hdf5 files by a magnitdue criteria.
 """
 
 import numpy as np
+import pandas as pd
 
 
 def read_header(file_name: str, delimiter: str = " ") -> np.ndarray[str]:
@@ -18,7 +19,9 @@ def read_header(file_name: str, delimiter: str = " ") -> np.ndarray[str]:
     return np.array(column_list)
 
 
-def ids_less_than_mag(sed_file_name: str, filter_name: str, mag_limit: float) -> np.ndarray[int]:
+def ids_less_than_mag(
+    sed_file_name: str, filter_name: str, mag_limit: float
+) -> np.ndarray[int]:
     """
     Loads in the SED file and returns the galaxy ids that are less than the mag_limit.
     """
@@ -33,6 +36,17 @@ def ids_less_than_mag(sed_file_name: str, filter_name: str, mag_limit: float) ->
     )
     cut = np.where(mags < mag_limit)
     return ids[cut].astype(int)
+
+
+def select_magnitudes_with_ids(
+    sed_file_name: str, ids: np.ndarray, outfile: str
+) -> None:
+    """
+    Will return a sub sample of the sed file with only icluding galaxies with the given ids.
+    """
+    df = pd.read_csv(sed_file_name, sep=' ')
+    filtered_df = df[df["ID"].isin(ids)]
+    filtered_df.to_csv(outfile, sep=' ', index=False)
 
 
 if __name__ == "__main__":
