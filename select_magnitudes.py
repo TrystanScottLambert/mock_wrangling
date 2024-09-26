@@ -15,7 +15,7 @@ def read_header(file_name: str, delimiter: str = " ") -> np.ndarray[str]:
     column_list = header.split(delimiter)
 
     if column_list[0] != "ID":
-        raise ValueError("File does not seem to have an ID column. Please check.")
+        raise ValueError("File does not seem to have an ID . Please check.")
     return np.array(column_list)
 
 
@@ -44,7 +44,7 @@ def select_magnitudes_with_ids(
     """
     Will return a sub sample of the sed file with only icluding galaxies with the given ids.
     """
-    df = pd.read_csv(sed_file_name, sep=' ')
+    df = pd.read_csv(sed_file_name, sep='\s+')
     filtered_df = df[df["ID"].isin(ids)]
     filtered_df.to_csv(outfile, sep=' ', index=False)
 

@@ -31,9 +31,12 @@ def get_h5_group_properties(
     else:
         sub_idx = np.arange(len(h5_group[keys[0]]))
 
-    data = []
-    for key in keys:
-        data.append(h5_group[key][:][sub_idx])
+    if len(sub_idx) ==0:
+        data = None
+    else:
+        data = []
+        for key in keys:
+            data.append(h5_group[key][:][sub_idx])
     return data
 
 
@@ -85,12 +88,12 @@ def make_mock_catalog(
     for hdf5_file in mock_hdf5_files:
         print(f"creating mock from {hdf5_file}")
         light_cone = MockLightCone(hdf5_file)
-        galaxy_values.append(
-            light_cone.get_galaxy_properties(galaxy_properties, galaxy_ids)
-        )
-        group_values.append(
-            light_cone.get_group_properties(group_properties, group_ids)
-        )
+        galaxy_properties_data = light_cone.get_galaxy_properties(galaxy_properties, galaxy_ids)
+        group_properties_data = light_cone.get_group_properties(group_properties, group_ids)
+        if galaxy_properties_data is not None:
+            galaxy_values.append(galaxy_properties_data)
+        if group_properties_data is not None:
+            group_values.append(group_properties_data)
         light_cone.close_hdf5()
 
     # Write galaxies to file
@@ -138,8 +141,8 @@ def combine_mag_gal_cats(
             "ID mismatch between the mock galaxies and the magnitude catalog."
         )
 
-    gal_df = pd.read_csv(mock_galaxies_catalog, sep=' ')
-    mag_df = pd.read_csv(magnitude_catalog, sep=' ')
+    gal_df = pd.read_csv(mock_galaxies_catalog, sep='\s+')
+    mag_df = pd.read_csv(magnitude_catalog, sep='\s+')
     combined = pd.concat([gal_df, mag_df.drop(columns="ID")], axis=1)
     combined['id_galaxy_sky'] = combined['id_galaxy_sky'].astype(int)
     combined.to_csv(outfile, sep=" ", index=False)

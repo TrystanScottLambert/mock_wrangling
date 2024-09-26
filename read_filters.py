@@ -7,7 +7,7 @@ import glob
 import h5py
 import numpy as np
 
-from mock_file_types import SED
+from mock_file_types import SED, FilterList
 
 
 def _select_appropriate_sed_files(directory: str) -> list[str]:
@@ -52,6 +52,8 @@ def find_sed_files_with_filter(sed_files: list[str], filter_name: str) -> str:
     """
     Finds a SED file with that filter in the list of sed files.
     """
+    if isinstance(filter_name, str):
+        filter_name = filter_name.encode()
     for sed_file in sed_files:
         with h5py.File(sed_file, "r") as file:
             if filter_name in file["filters"][:]:
@@ -68,7 +70,6 @@ def get_mag_data(
     ab_dust total values for the given filter. The filter needs to be present.
     """
     files = np.sort(glob.glob(sed_ls_command))
-
     galaxy_sky_ids = []
     ap_mags = []
     ab_mags = []
@@ -90,28 +91,36 @@ class Magnitudes:
     absolute_magnitudes: np.ndarray
 
 
+def assign_filters_to_cmds(cmds: list[str], filter_list: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Avoiding repetition so we want to get all the filters that we can from one sequence of 
+    hdf5 files and then get the rest from others.
+    """
+    grouped_filters = {}
+    for key, filter_item in zip(cmds, filter_list):
+        if key not in grouped_filters:
+            grouped_filters[key] = []
+        grouped_filters[key].append(filter_item)
+    return list(grouped_filters.keys()), list(grouped_filters.values())
+
 class FilterData:
     """
     Representation of the filter data.
     """
 
-    def __init__(self, directory: str, filter_names: list[str]) -> None:
+    def __init__(self, directory: str, filter_names: FilterList) -> None:
         """
         Determine filters are available and get them.
         """
 
         self.searchable_hdf5_file = _select_appropriate_sed_files(directory)
-        self.filter_names = filter_names
+        self.filter_names_bytes = filter_names.in_bytes
+        self.filter_names_string = filter_names.in_str
         cmds = [
             find_sed_files_with_filter(self.searchable_hdf5_file, filter_name)
-            for filter_name in filter_names
+            for filter_name in self.filter_names_bytes
         ]
-        unique_cmds, idx, counts = np.unique(
-            cmds, return_index=True, return_counts=True
-        )
-        filter_groups = [
-            filter_names[_id : _id + count] for _id, count in zip(idx, counts)
-        ]
+        unique_cmds, filter_groups = assign_filters_to_cmds(cmds, self.filter_names_bytes)
         self.cmds = unique_cmds
         self.filter_groups = filter_groups
         self.magnitudes = {}
@@ -134,39 +143,36 @@ class FilterData:
         print("Writing to File")
         with open(outfile, "w", encoding="utf-8") as file:
             file.write("ID ")
-            for filter_name in self.filter_names:
-                string_name = filter_name.decode("utf-8")
-                file.write(f"{string_name}_ap {string_name}_ab ")
+            for filter_name in self.filter_names_string:
+                file.write(f"{filter_name}_ap {filter_name}_ab ")
             file.write("\n")
             mags = []
-            for filter_name in self.filter_names:
+            for filter_name in self.filter_names_bytes:
                 mags.append(self.magnitudes[filter_name].apparent_magnitudes)
                 mags.append(self.magnitudes[filter_name].absolute_magnitudes)
             mags = np.array(mags).T
-            for _id, row in zip(self.magnitudes["galaxy_ids"].astype(int), mags):
-                if _id != 0: # nans get turned into 0s with .astype(int). Removing nans in this step
+            for _id, row in zip(self.magnitudes["galaxy_ids"], mags):
+                if not np.isnan(_id):  #Removing NANs.
                     file.write(f"{_id} ")
                     for column in row:
                         file.write(f"{column} ")
                     file.write(" \n")
-                else:
-                    print('SKIPPED_ROW')
 
 
 if __name__ == "__main__":
-    #TEST_DIRECTORY = 'SED_sample_files/'
-    #test_filts = scrape_available_filters(TEST_DIRECTORY)
-    #chosen_filts = test_filts[10:13]
-    #test = FilterData(TEST_DIRECTORY, chosen_filts)
-    #test.write_to_ascii('is_this_right.dat')
+    TEST_DIRECTORY = 'SED_sample_files/'
+    test_filts = scrape_available_filters(TEST_DIRECTORY)
+    chosen_filts = test_filts[10:13]
+    filters_over_different_files = ['u_VST', 'F1500W_JWST', 'hst/wfc3/IR/f110w']
+    test = FilterData(TEST_DIRECTORY, FilterList(filters_over_different_files))
+    test.write_to_ascii('is_this_right.dat')
 
     # For Pawsey
-    DIRECTORY = "/scratch/pawsey0119/clagos/Stingray/output/medi-SURFS/\
-        Shark-TreeFixed-ReincPSO-kappa0p002/deep-optical-final/split/"
-    available_filters = scrape_available_filters(DIRECTORY)
-    VST_filters = available_filters[40:44]
-    VISTA_filters = available_filters[44:49]
-    sdss_filters = available_filters[4:7]
-    print("Getting These Filters: ", sdss_filters)
-    data = FilterData(DIRECTORY, sdss_filters)
-    data.write_to_ascii("sdss_filters.dat")
+    #DIRECTORY = "/scratch/pawsey0119/clagos/Stingray/output/medi-SURFS/Shark-TreeFixed-ReincPSO-kappa0p002/deep-optical-final/split/"
+    #available_filters = scrape_available_filters(DIRECTORY)
+    #VST_filters = available_filters[40:44]
+    #VISTA_filters = available_filters[44:49]
+    #sdss_filters = available_filters[4:7]
+    #print("Getting These Filters: ", sdss_filters)
+    #data = FilterData(DIRECTORY, sdss_filters)
+    #data.write_to_ascii("sdss_filters.dat")

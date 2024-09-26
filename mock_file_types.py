@@ -65,3 +65,37 @@ class SED(h5py.File):
         Dumps the id_galaxy_sky value from the hdf5 file.
         """
         return self["id_galaxy_sky"][:]
+
+
+class FilterList:
+    """
+    Class to deal with filter lists being either bytes or strings.
+    """
+
+    def __init__(self, filter_list: list[StrOrByte]) -> None:
+        """
+        Initializing and making sure that the filter list is converted into bytes.
+        """
+        self.filter_list = filter_list
+
+    @property
+    def in_bytes(self):
+        """Returns the list in bytes."""
+        byte_list = []
+        for filter_item in self.filter_list:
+            if isinstance(filter_item, str):
+                byte_list.append(filter_item.encode())
+            else:
+                byte_list.append(filter_item)
+        return byte_list
+
+    @property
+    def in_str(self):
+        """Returns the list in strings."""
+        string_list = []
+        for filter_item in self.filter_list:
+            if isinstance(filter_item, bytes):
+                string_list.append(filter_item.decode())
+            else:
+                string_list.append(filter_item)
+        return string_list
